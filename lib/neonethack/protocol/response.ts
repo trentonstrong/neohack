@@ -125,7 +125,7 @@ export const compactResponseSchema: Schema = {
   properties: {
     version: { const: 1 }, sessionId: string, revision: integer,
     requestId: nullable(string), observation: { type: "object" },
-    update: closed({ kind: enumeration("snapshot", "delta"), id: integer, base: integer,
+    update: closed({ kind: enumeration("snapshot", "delta"), id: integer, base: integer, knowledgeObservedTurn: integer,
       remove: array(string), worldRemoved: array({ type: "array", items: integer, minItems: 2, maxItems: 2 }) }, ["kind", "id"]),
     decision: nullable({ type: "object" }), events: array({ type: "object" }),
     outcome: { type: "object" }, ended: boolean, end: nullable({ type: "object" }),

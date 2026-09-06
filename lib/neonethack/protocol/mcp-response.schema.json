@@ -42,6 +42,9 @@
         "base": {
           "type": "integer"
         },
+        "knowledgeObservedTurn": {
+          "type": "integer"
+        },
         "remove": {
           "type": "array",
           "items": {

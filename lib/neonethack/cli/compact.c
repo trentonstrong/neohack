@@ -43,6 +43,28 @@ static mj_val field(const char *s, const char *key)
 {
     mj_val v = {NULL}; if (s) mj_find(s, key, &v); return v;
 }
+static int equal_knowledge(mj_val a, mj_val b)
+{
+    const char *p = a.p;
+    char *key;
+    mj_val value;
+    int count = 0;
+    if (!field(a.p,"observedTurn").p || !field(b.p,"observedTurn").p) return 0;
+    while (next(&p,&key,&value)) {
+        if (strcmp(key,"observedTurn")) {
+            int same = equal(value,field(b.p,key));
+            ++count;
+            if (!same) { free(key); return 0; }
+        }
+        free(key);
+    }
+    p = b.p;
+    while (next(&p,&key,&value)) {
+        if (strcmp(key,"observedTurn")) --count;
+        free(key);
+    }
+    return count == 0;
+}
 static int same_cell(mj_val a, mj_val b)
 {
     return equal(field(a.p,"x"),field(b.p,"x")) && equal(field(a.p,"y"),field(b.p,"y"));
@@ -61,6 +83,7 @@ char *compact_project(compact_state *state, const char *response, const char *me
     int snapshot, full = !strcmp(method,"session.observe");
     mj_Buf b, projected, removed, world_removed, changes;
     const char *p; char *key; mj_val v;
+    mj_val knowledge_turn = {NULL};
     char *baseline = NULL, *observation = NULL, *remove_json = NULL, *world_json = NULL;
     mj_init(&b); mj_obj(&b);
     p = response;
@@ -95,7 +118,11 @@ char *compact_project(compact_state *state, const char *response, const char *me
             while (previous.p && mj_arr_next(previous.p,&it,&cell)) if (!lookup(v,cell).p) {
                 mj_arr(&world_removed); raw(&world_removed,field(cell.p,"x")); raw(&world_removed,field(cell.p,"y")); mj_endarr(&world_removed);
             }
-        } else if (!equal(v,field(oldobs.p,key))) { mj_key(&projected,key); raw(&projected,v); }
+        } else if (!equal(v,field(oldobs.p,key))) {
+            if (!strcmp(key,"knowledge") && equal_knowledge(v,field(oldobs.p,key)))
+                knowledge_turn = field(v.p,"observedTurn");
+            else { mj_key(&projected,key); raw(&projected,v); }
+        }
         free(key);
     }
     if (!snapshot) {
@@ -117,6 +144,7 @@ char *compact_project(compact_state *state, const char *response, const char *me
     mj_key(&b,"id"); mj_intv(&b,state->sequence + 1);
     if (!snapshot) {
         mj_key(&b,"base"); mj_intv(&b,state->sequence);
+        if (knowledge_turn.p) { mj_key(&b,"knowledgeObservedTurn"); raw(&b,knowledge_turn); }
         if (strcmp(remove_json,"[]")) { mj_key(&b,"remove"); mj_rawv(&b,remove_json); }
         if (strcmp(world_json,"[]")) { mj_key(&b,"worldRemoved"); mj_rawv(&b,world_json); }
     }
