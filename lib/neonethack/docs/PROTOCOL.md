@@ -497,6 +497,12 @@ Each observation response carries `update`:
   `update.worldRemoved` deletes `[x,y]` coordinates. Replacement cells can remove
   occupants, objects, or visibility; do not merge their individual properties.
 
+When only `knowledge.observedTurn` changes, a delta omits the knowledge block and
+supplies `update.knowledgeObservedTurn`. The reader replaces the stored
+`knowledge.observedTurn` with this exact value. This update requires an existing
+knowledge block and cannot accompany its replacement or removal. Snapshots never
+use this update. The full APIs and receipts retain the complete knowledge block.
+
 An empty list is a real replacement, not omission. Inventory item IDs remain
 opaque. Observation update IDs are connection-local counters, independent of
 game revisions and turns. Errors and responses without observations do not

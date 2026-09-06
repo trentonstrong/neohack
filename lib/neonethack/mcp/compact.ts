@@ -23,8 +23,19 @@ export class CompactResponses {
     const before = old.observation, after = result.observation;
     const observation: Record<string, any> = {};
     const remove = Object.keys(before).filter(key => !(key in after));
+    let knowledgeObservedTurn: number | undefined;
     for (const [key, value] of Object.entries(after)) {
-      if (key !== "world" && JSON.stringify(value) !== JSON.stringify(before[key])) observation[key] = value;
+      if (key === "world" || JSON.stringify(value) === JSON.stringify(before[key])) continue;
+      if (key === "knowledge" && value && before.knowledge) {
+        const { observedTurn, ...content } = value as Record<string, any>;
+        const { observedTurn: previousTurn, ...previousContent } = before.knowledge;
+        if (typeof observedTurn === "number" && typeof previousTurn === "number" &&
+            JSON.stringify(content) === JSON.stringify(previousContent)) {
+          knowledgeObservedTurn = observedTurn;
+          continue;
+        }
+      }
+      observation[key] = value;
     }
     const key = (cell: any) => `${cell.x},${cell.y}`;
     const cells = new Map(before.world.map((cell: any) => [key(cell), cell]));
@@ -33,7 +44,8 @@ export class CompactResponses {
     const worldRemoved = before.world.filter((cell: any) => !current.has(key(cell))).map((cell: any) => [cell.x, cell.y]);
     if (changed.length) observation.world = changed;
     result.observation = observation;
-    result.update = { kind: "delta", id, base: id - 1, ...(remove.length ? { remove } : {}), ...(worldRemoved.length ? { worldRemoved } : {}) };
+    result.update = { kind: "delta", id, base: id - 1, ...(remove.length ? { remove } : {}), ...(worldRemoved.length ? { worldRemoved } : {}),
+      ...(knowledgeObservedTurn !== undefined ? { knowledgeObservedTurn } : {}) };
     return result;
   }
 }
@@ -54,6 +66,11 @@ export class CompactObservationReader {
       const observation = structuredClone(this.last.observation);
       for (const key of update.remove ?? []) delete observation[key];
       for (const [key, value] of Object.entries(result.observation)) if (key !== "world") observation[key] = value;
+      if (update.knowledgeObservedTurn !== undefined) {
+        if (!observation.knowledge || result.observation.knowledge !== undefined || update.remove?.includes("knowledge"))
+          throw Error("Invalid knowledge timestamp update; call session.observe to resynchronize.");
+        observation.knowledge.observedTurn = update.knowledgeObservedTurn;
+      }
       const cells = new Map<string, any>(observation.world.map((cell: any) => [`${cell.x},${cell.y}`, cell]));
       for (const [x, y] of update.worldRemoved ?? []) cells.delete(`${x},${y}`);
       for (const cell of result.observation.world ?? []) cells.set(`${cell.x},${cell.y}`, cell);
